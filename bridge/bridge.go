@@ -5,12 +5,15 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
-	"runtime"
 	"strings"
+
+	sysruntime "runtime"
 
 	"github.com/klauspost/cpuid/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"gopkg.in/yaml.v3"
 )
 
@@ -24,8 +27,8 @@ var isStartup = true
 var Env = &EnvResult{
 	BasePath:    "",
 	AppName:     "",
-	OS:          runtime.GOOS,
-	ARCH:        runtime.GOARCH,
+	OS:          sysruntime.GOOS,
+	ARCH:        sysruntime.GOARCH,
 	X64Level:    cpuid.CPU.X64Level(),
 	FromTaskSch: false,
 }
@@ -49,7 +52,16 @@ func InitBridge() {
 	Env.BasePath = filepath.Dir(exePath)
 	Env.AppName = filepath.Base(exePath)
 
-	// step2: Read Config
+	// step2: Create a persistent data symlink
+	if Env.OS == "darwin" {
+		user, _ := user.Current()
+		linkPath := Env.BasePath + "/data"
+		appPath := "/Users/" + user.Username + "/Library/Application Support/" + Env.AppName
+		os.MkdirAll(appPath, os.ModePerm)
+		os.Symlink(appPath, linkPath)
+	}
+
+	// step3: Read Config
 	b, err := os.ReadFile(Env.BasePath + "/data/user.yaml")
 	if err == nil {
 		yaml.Unmarshal(b, &Config)
@@ -123,4 +135,8 @@ func (a *App) GetInterfaces() FlagResult {
 	}
 
 	return FlagResult{true, strings.Join(interfaceNames, "|")}
+}
+
+func (a *App) ShowMainWindow() {
+	runtime.WindowShow(a.Ctx)
 }

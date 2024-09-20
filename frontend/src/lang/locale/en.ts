@@ -560,7 +560,8 @@ export default {
       name: 'sing-box',
       version: 'Switch version',
       stable: 'Stable version',
-      alpha: 'Alpha version'
+      alpha: 'Alpha version',
+      grant: 'Grant Privileges'
     },
     userAgent: {
       name: 'User-Agent',
@@ -576,6 +577,7 @@ export default {
     restart: 'Restart APP',
     noDownloadLink: 'No download link found',
     updateSuccessfulRestart: 'Update completed, please restart the App',
+    updateSuccessfulReplace: 'Download completed, please manually replace the App',
     updateSuccessful: 'Update completed',
     newVersion: 'New version found',
     latestVersion: 'Already the latest version'
@@ -612,6 +614,7 @@ export default {
     fallback: '🐟 Fallback'
   },
   tray: {
+    showMainWindow: 'Show Main Window',
     restart: 'Restart',
     restartTip: 'Restart App',
     exit: 'Exit',

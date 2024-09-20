@@ -559,7 +559,8 @@ export default {
     kernel: {
       version: '切换版本',
       stable: '稳定版',
-      alpha: '内测版'
+      alpha: '内测版',
+      grant: '授予特权'
     },
     userAgent: {
       name: '用户代理(User-Agent)',
@@ -575,6 +576,7 @@ export default {
     restart: '重启软件',
     noDownloadLink: '没有发现下载链接',
     updateSuccessfulRestart: '更新完成，请重启软件',
+    updateSuccessfulReplace: '下载完成，请手动替换软件',
     updateSuccessful: '更新完成',
     newVersion: '发现新版本',
     latestVersion: '已经是最新版本了'
@@ -611,6 +613,7 @@ export default {
     fallback: '🐟 漏网之鱼'
   },
   tray: {
+    showMainWindow: '显示主窗口',
     restart: '重启',
     restartTip: '重启程序',
     exit: '退出',
