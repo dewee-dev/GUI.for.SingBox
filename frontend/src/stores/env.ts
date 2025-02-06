@@ -12,7 +12,7 @@ export const useEnvStore = defineStore('env', () => {
     basePath: '',
     os: '',
     arch: '',
-    x64Level: 0
+    x64Level: 0,
   })
 
   const systemProxy = ref(false)
@@ -31,9 +31,14 @@ export const useEnvStore = defineStore('env', () => {
     } else {
       const { port, 'mixed-port': mixedPort, 'socks-port': socksPort } = kernelApiStore.config
       const proxyServerList = [
-        `127.0.0.1:${port}`,
-        `127.0.0.1:${mixedPort}`,
-        `127.0.0.1:${socksPort}`
+        `http://127.0.0.1:${port}`,
+        `http://127.0.0.1:${mixedPort}`,
+
+        `socks5://127.0.0.1:${mixedPort}`,
+        `socks5://127.0.0.1:${socksPort}`,
+
+        `socks=127.0.0.1:${mixedPort}`,
+        `socks=127.0.0.1:${socksPort}`,
       ]
       systemProxy.value = proxyServerList.includes(proxyServer)
     }
@@ -69,6 +74,6 @@ export const useEnvStore = defineStore('env', () => {
     setSystemProxy,
     clearSystemProxy,
     switchSystemProxy,
-    updateSystemProxyStatus
+    updateSystemProxyStatus,
   }
 })

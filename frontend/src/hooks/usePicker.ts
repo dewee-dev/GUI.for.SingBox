@@ -1,15 +1,16 @@
 import { render, createVNode } from 'vue'
 
-import PickerComp from '@/components/Picker/index.vue'
-
-export type PickerItem = { label: string; value: string; description?: string }
+import i18n from '@/lang'
+import PickerComp, { type PickerItem } from '@/components/Picker/index.vue'
 
 const createPicker = <T>(
   type: 'single' | 'multi',
   title: string,
   options: PickerItem[],
-  initialValue: string[]
+  initialValue: string[],
 ): Promise<T> => {
+  const { t } = i18n.global
+
   return new Promise((resolve, reject) => {
     const dom = document.createElement('div')
     dom.style.cssText = `
@@ -27,11 +28,11 @@ const createPicker = <T>(
       options,
       initialValue,
       onConfirm: resolve,
-      onCancel: () => reject('cancelled'),
+      onCancel: () => reject(t('common.canceled')),
       onFinish: () => {
         render(null, dom)
         dom.remove()
-      }
+      },
     })
     document.body.appendChild(dom)
     render(vnode, dom)

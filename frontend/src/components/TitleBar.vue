@@ -2,7 +2,7 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 
 import { APP_TITLE, APP_VERSION, debounce, exitApp } from '@/utils'
-import { type Menu, useAppSettingsStore, useKernelApiStore, useEnvStore } from '@/stores'
+import { useAppSettingsStore, useKernelApiStore, useEnvStore } from '@/stores'
 import {
   WindowSetAlwaysOnTop,
   WindowHide,
@@ -11,12 +11,12 @@ import {
   WindowReloadApp,
   WindowToggleMaximise,
   WindowIsMaximised,
-  RestartApp
+  RestartApp,
 } from '@/bridge'
 
 const isPinned = ref(false)
 const isMaximised = ref(false)
-const isRollingRelease = ref(false)
+const rollingReleaseVersion = ref('')
 
 const appSettingsStore = useAppSettingsStore()
 const kernelApiStore = useKernelApiStore()
@@ -38,20 +38,20 @@ const closeWindow = async () => {
 const menus: Menu[] = [
   {
     label: 'titlebar.resetSize',
-    handler: () => WindowSetSize(800, 540)
+    handler: () => WindowSetSize(800, 540),
   },
   {
     label: 'titlebar.reload',
-    handler: WindowReloadApp
+    handler: WindowReloadApp,
   },
   {
     label: 'titlebar.restart',
-    handler: RestartApp
+    handler: RestartApp,
   },
   {
     label: 'titlebar.exitApp',
-    handler: exitApp
-  }
+    handler: exitApp,
+  },
 ]
 
 const onResize = debounce(async () => {
@@ -62,7 +62,9 @@ const updateRollingReleaseState = async () => {
   try {
     const res = await fetch('/version.txt')
     const txt = await res.text()
-    isRollingRelease.value = txt.startsWith('SHA2-256')
+    if (txt && txt.length === 7) {
+      rollingReleaseVersion.value = `(${txt})`
+    }
   } catch (error) {
     console.log('Not a rolling release', error)
   }
@@ -84,11 +86,12 @@ onUnmounted(() => window.removeEventListener('resize', onResize))
     <img class="logo" draggable="false" src="@/assets/logo.png" />
     <div
       :style="{
-        color: appSettingsStore.app.kernel.running ? 'var(--primary-color)' : 'var(--color)'
+        color: appSettingsStore.app.kernel.running ? 'var(--primary-color)' : 'var(--color)',
       }"
       class="appname"
     >
-      {{ APP_TITLE }} {{ APP_VERSION }} {{ isRollingRelease ? '- Rolling Release' : '' }}
+      {{ APP_TITLE }} {{ APP_VERSION }} {{ rollingReleaseVersion || '' }}
+      {{ rollingReleaseVersion ? '- Rolling Release' : '' }}
     </div>
     <Button v-if="kernelApiStore.loading" loading type="text" size="small" />
     <div v-menu="menus" class="menus"></div>
@@ -114,12 +117,13 @@ onUnmounted(() => window.removeEventListener('resize', onResize))
   <div v-else-if="envStore.env.os === 'darwin'" class="placeholder" style="--wails-draggable: drag">
     <div
       :style="{
-        color: appSettingsStore.app.kernel.running ? 'var(--primary-color)' : 'var(--color)'
+        color: appSettingsStore.app.kernel.running ? 'var(--primary-color)' : 'var(--color)',
       }"
       v-menu="menus"
       class="appname"
     >
-      {{ APP_TITLE }} {{ APP_VERSION }} {{ isRollingRelease ? '- Rolling Release' : '' }}
+      {{ APP_TITLE }} {{ APP_VERSION }} {{ rollingReleaseVersion || '' }}
+      {{ rollingReleaseVersion ? '- Rolling Release' : '' }}
     </div>
     <Button v-if="kernelApiStore.loading" loading type="text" size="small" />
   </div>

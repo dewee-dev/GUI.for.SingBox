@@ -3,7 +3,9 @@ import { defineStore } from 'pinia'
 import { stringify, parse } from 'yaml'
 
 import { debounce, ignoredError, isValidRulesJson, omitArray } from '@/utils'
-import { RulesetsFilePath, RulesetFormat, EmptyRuleSet } from '@/constant'
+import { EmptyRuleSet } from '@/constant/kernel'
+import { RulesetsFilePath } from '@/constant/app'
+import { RulesetFormat } from '@/enums/kernel'
 import { Readfile, Writefile, Copyfile, Download, FileExists, HttpGet } from '@/bridge'
 
 export type RuleSetType = {
@@ -70,7 +72,6 @@ export const useRulesetsStore = defineStore('rulesets', () => {
   const _doUpdateRuleset = async (r: RuleSetType) => {
     if (r.format === RulesetFormat.Source) {
       let body = ''
-      let ruleset: any
       let isExist = true
 
       if (r.type === 'File') {
@@ -78,6 +79,9 @@ export const useRulesetsStore = defineStore('rulesets', () => {
       } else if (r.type === 'Http') {
         const { body: b } = await HttpGet(r.url)
         body = b
+        if (typeof body !== 'string') {
+          body = JSON.stringify(body)
+        }
       } else if (r.type === 'Manual') {
         isExist = await FileExists(r.path)
         if (isExist) {
@@ -91,15 +95,15 @@ export const useRulesetsStore = defineStore('rulesets', () => {
         throw 'Not a valid ruleset data'
       }
 
-      ruleset = JSON.parse(body)
+      const ruleset = JSON.parse(body)
 
       r.count = ruleset.rules.reduce(
         (p: number, c: string[]) =>
           Object.values(c).reduce(
             (p, c: string[] | string) => (Array.isArray(c) ? p + c.length : p + 1),
-            0
+            0,
           ) + p,
-        0
+        0,
       )
 
       if (
@@ -162,6 +166,6 @@ export const useRulesetsStore = defineStore('rulesets', () => {
     deleteRuleset,
     updateRuleset,
     updateRulesets,
-    getRulesetById
+    getRulesetById,
   }
 })

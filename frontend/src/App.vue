@@ -49,7 +49,7 @@ EventsOn('launchArgs', async (args: string[]) => {
     try {
       await subscribesStore.importSubscribe(_name, _url)
       message.success('common.success')
-    } catch (error: any) {
+    } catch {
       message.error('URL missing')
     }
   }
@@ -72,7 +72,7 @@ appSettings.setupAppSettings().then(async () => {
     subscribesStore.setupSubscribes(),
     rulesetsStore.setupRulesets(),
     pluginsStore.setupPlugins(),
-    scheduledTasksStore.setupScheduledTasks()
+    scheduledTasksStore.setupScheduledTasks(),
   ])
 
   if (await IsStartup()) {

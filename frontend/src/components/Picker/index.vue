@@ -3,16 +3,29 @@ import { ref } from 'vue'
 
 import useI18n from '@/lang'
 
+export type PickerItem = {
+  label: string
+  value: string
+  description?: string
+  background?: string
+  onSelect?: (args: {
+    value: PickerItem['value']
+    option: PickerItem
+    options: PickerItem[]
+    selected: PickerItem['value'][]
+  }) => void
+}
+
 interface Props {
   type: 'single' | 'multi'
   title: string
-  options: { label: string; value: string; description?: string }[]
+  options: PickerItem[]
   initialValue?: string[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
   options: () => [],
-  initialValue: () => []
+  initialValue: () => [],
 })
 
 const emits = defineEmits(['confirm', 'cancel', 'finish'])
@@ -37,12 +50,18 @@ const handleCancel = () => {
 
 const isSelected = (option: string) => selected.value.has(option)
 
-const handleSelect = (option: string) => {
-  if (isSelected(option)) {
-    selected.value.delete(option)
+const handleSelect = (option: PickerItem) => {
+  if (isSelected(option.value)) {
+    selected.value.delete(option.value)
   } else {
     if (props.type === 'single') selected.value.clear()
-    selected.value.add(option)
+    selected.value.add(option.value)
+    option.onSelect?.({
+      value: option.value,
+      option,
+      options: props.options,
+      selected: [...selected.value],
+    })
   }
 }
 
@@ -61,9 +80,15 @@ const handleSelectAll = () => {
       <div class="title">{{ t(title) }}</div>
 
       <div class="options">
-        <div v-for="(o, i) in options" :key="i" @click="handleSelect(o.value)" class="item">
+        <div
+          v-for="(o, i) in options"
+          :key="i"
+          @click="handleSelect(o)"
+          :style="{ background: o.background }"
+          class="item"
+        >
           <div class="label">
-            <div>{{ o.label }}</div>
+            <div>{{ t(o.label) }}</div>
             <Icon
               v-show="isSelected(o.value)"
               :size="32"

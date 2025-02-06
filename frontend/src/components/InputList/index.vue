@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, useTemplateRef } from 'vue'
+import Input from '@/components/Input/index.vue'
 
-import { DraggableOptions } from '@/constant'
+import { DraggableOptions } from '@/constant/app'
 
 interface Props {
   placeholder?: string
@@ -13,7 +14,7 @@ withDefaults(defineProps<Props>(), { autofocus: true })
 const list = defineModel<string[]>({ default: [] })
 
 const value = ref('')
-const inputRef = ref()
+const inputRef = useTemplateRef<typeof Input>('inputRef')
 
 const handleAdd = () => {
   if (!value.value) return

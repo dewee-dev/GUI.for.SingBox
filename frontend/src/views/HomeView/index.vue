@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, useTemplateRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { APP_TITLE, sleep } from '@/utils'
@@ -15,7 +15,7 @@ import CommonController from './components/CommonController.vue'
 
 const kernelLoading = ref(false)
 const showController = ref(false)
-const controllerRef = ref<HTMLElement>()
+const controllerRef = useTemplateRef('controllerRef')
 
 const { t } = useI18n()
 const { message } = useMessage()
@@ -72,9 +72,9 @@ const onMouseWheel = (e: WheelEvent) => {
 
 const onTunSwitchChange = async (enable: boolean) => {
   try {
-    await kernelApiStore.updateConfig('tun', enable)
-    // await envStore.clearSystemProxy()
+    await kernelApiStore.updateConfig('tun', { enable })
   } catch (error: any) {
+    kernelApiStore.config.tun.enable = !kernelApiStore.config.tun.enable
     console.error(error)
     message.error(error)
   }
@@ -83,7 +83,6 @@ const onTunSwitchChange = async (enable: boolean) => {
 const onSystemProxySwitchChange = async (enable: boolean) => {
   try {
     await envStore.switchSystemProxy(enable)
-    // await kernelApiStore.updateConfig('tun', false)
   } catch (error: any) {
     console.error(error)
     message.error(error)

@@ -20,9 +20,11 @@ type EnvResult struct {
 }
 
 type RequestOptions struct {
-	Proxy    string
-	Insecure bool
-	Timeout  int
+	Proxy     string
+	Insecure  bool
+	Timeout   int
+	CancelId  string
+	FileField string
 }
 
 type ExecOptions struct {
@@ -39,6 +41,11 @@ type FlagResult struct {
 	Data string `json:"data"`
 }
 
+type ServerOptions struct {
+	Cert string `json:"cert"`
+	Key  string `json:"key"`
+}
+
 type HTTPResult struct {
 	Flag    bool        `json:"flag"`
 	Status  int         `json:"status"`
@@ -48,10 +55,11 @@ type HTTPResult struct {
 
 type AppConfig struct {
 	WindowStartState int  `yaml:"windowStartState"`
+	WebviewGpuPolicy int  `yaml:"webviewGpuPolicy"`
 	Width            int  `yaml:"width"`
 	Height           int  `yaml:"height"`
 	MultipleInstance bool `yaml:"multipleInstance"`
-	RollingRelease   bool `yaml:"rollingRelease"`
+	RollingRelease   bool `yaml:"rollingRelease" default:"true"`
 	StartHidden      bool
 }
 

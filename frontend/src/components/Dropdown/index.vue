@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref, useTemplateRef } from 'vue'
 
 type TriggerType = 'click' | 'hover'
 
@@ -10,10 +10,10 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   trigger: () => ['click'],
-  placement: 'bottom'
+  placement: 'bottom',
 })
 
-const domRef = ref<HTMLElement>()
+const domRef = useTemplateRef('domRef')
 const show = ref(false)
 const transformOrigin = ref(props.placement === 'top' ? 'bottom' : 'top')
 
@@ -70,7 +70,7 @@ onUnmounted(() => {
         v-show="show"
         :style="{
           bottom: placement === 'top' ? '100%' : '',
-          top: placement === 'top' ? '' : '100%'
+          top: placement === 'top' ? '' : '100%',
         }"
         class="overlay"
       >

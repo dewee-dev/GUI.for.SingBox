@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch, onActivated } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch, onActivated, useTemplateRef } from 'vue'
 
 import { formatBytes } from '@/utils'
 
@@ -13,11 +13,11 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   height: 214,
   padding: 50,
-  legend: () => ['upload', 'download']
+  legend: () => ['upload', 'download'],
 })
 
 const MAX_HISTORY = 60
-const svgRef = ref<SVGElement>()
+const svgRef = useTemplateRef<SVGAElement>('svgRef')
 const width = ref(200)
 const points = ref<string[]>([])
 const showLines = ref([true, true])
@@ -46,7 +46,8 @@ const updateSvgWidth = () => {
 }
 
 const updateChart = () => {
-  let { height, padding } = props
+  const { padding } = props
+  let { height } = props
   const paddingY = height / 8
   height -= paddingY
   points.value = props.series.map((s, index) => {

@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 
 import { useMessage } from '@/hooks'
 import { deepClone, sampleID } from '@/utils'
-import { PluginTriggerEvent } from '@/constant'
+import { PluginTriggerEvent } from '@/enums/app'
 import { usePluginsStore, useAppSettingsStore, type PluginConfiguration } from '@/stores'
 
 interface Props {
@@ -33,14 +33,15 @@ const handleSubmit = async () => {
       props.id,
       PluginTriggerEvent.OnConfigure,
       settings.value,
-      oldSettings.value
+      oldSettings.value,
     )
   } catch (error: any) {
     const errors = [
       props.id + ' Not Found',
       'is Missing source code',
       'Disabled',
-      PluginTriggerEvent.OnConfigure + ' is not defined'
+      "Can't find variable: " + PluginTriggerEvent.OnConfigure,
+      PluginTriggerEvent.OnConfigure + ' is not defined',
     ]
     if (errors.every((v) => !error.includes(v))) {
       message.error(error)

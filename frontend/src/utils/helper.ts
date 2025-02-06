@@ -1,11 +1,11 @@
-import { ignoredError, APP_TITLE } from '@/utils'
+import { ignoredError } from '@/utils'
 import { deleteConnection, getConnections, useProxy } from '@/api/kernel'
 import {
   type ProxyType,
   useAppSettingsStore,
   useEnvStore,
   useKernelApiStore,
-  usePluginsStore
+  usePluginsStore,
 } from '@/stores'
 import { AbsolutePath, Exec, ExitApp, Readfile, Writefile } from '@/bridge'
 import { useConfirm, useMessage } from '@/hooks'
@@ -23,14 +23,14 @@ export const SwitchPermissions = async (enable: boolean) => {
         'REG_SZ',
         '/d',
         'RunAsAdmin',
-        '/f'
+        '/f',
       ]
     : [
         'delete',
         'HKEY_CURRENT_USER\\Software\\Microsoft\\Windows NT\\CurrentVersion\\AppCompatFlags\\Layers',
         '/v',
         basePath + '\\' + appName,
-        '/f'
+        '/f',
       ]
   await Exec('reg', args, { convert: true })
 }
@@ -46,12 +46,12 @@ export const CheckPermissions = async () => {
         '/v',
         basePath + '\\' + appName,
         '/t',
-        'REG_SZ'
+        'REG_SZ',
       ],
-      { convert: true }
+      { convert: true },
     )
     return out.includes('RunAsAdmin')
-  } catch (error) {
+  } catch {
     return false
   }
 }
@@ -67,7 +67,7 @@ export const GrantTUNPermission = async (path: string) => {
     await Exec('pkexec', [
       'setcap',
       'cap_net_bind_service,cap_net_admin,cap_dac_override=+ep',
-      absPath
+      absPath,
     ])
   }
 }
@@ -76,171 +76,214 @@ export const GrantTUNPermission = async (path: string) => {
 export const SetSystemProxy = async (
   enable: boolean,
   server: string,
-  proxyType: ProxyType = 'mixed'
+  proxyType: ProxyType = 'mixed',
 ) => {
   const { os } = useEnvStore().env
 
-  if (os === 'windows') {
-    setWindowsSystemProxy(server, enable, proxyType)
-    return
-  }
+  const handler = {
+    windows: setWindowsSystemProxy,
+    darwin: setDarwinSystemProxy,
+    linux: setLinuxSystemProxy,
+  }[os]
 
-  if (os === 'darwin') {
-    setDarwinSystemProxy(server, enable, proxyType)
-    return
-  }
-
-  if (os === 'linux') {
-    setLinuxSystemProxy(server, enable, proxyType)
-  }
+  await handler?.(server, enable, proxyType)
 }
 
-function setWindowsSystemProxy(server: string, enabled: boolean, proxyType: ProxyType) {
-  if (proxyType === 'socks') throw 'home.overview.notSupportSocks'
+async function setWindowsSystemProxy(server: string, enabled: boolean, proxyType: ProxyType) {
+  const p1 = ignoredError(Exec, 'reg', [
+    'add',
+    'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings',
+    '/v',
+    'ProxyEnable',
+    '/t',
+    'REG_DWORD',
+    '/d',
+    enabled ? '1' : '0',
+    '/f',
+  ])
 
-  ignoredError(
-    Exec,
-    'reg',
-    [
-      'add',
-      'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings',
-      '/v',
-      'ProxyEnable',
-      '/t',
-      'REG_DWORD',
-      '/d',
-      enabled ? '1' : '0',
-      '/f'
-    ],
-    { convert: true }
-  )
+  const p2 = ignoredError(Exec, 'reg', [
+    'add',
+    'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings',
+    '/v',
+    'ProxyServer',
+    '/d',
+    enabled ? (proxyType === 'socks' ? 'socks=' + server : server) : '',
+    '/f',
+  ])
 
-  ignoredError(
-    Exec,
-    'reg',
-    [
-      'add',
-      'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings',
-      '/v',
-      'ProxyServer',
-      '/d',
-      enabled ? server : '',
-      '/f'
-    ],
-    { convert: true }
-  )
+  await Promise.all([p1, p2])
 }
 
-function setDarwinSystemProxy(server: string, enabled: boolean, proxyType: ProxyType) {
-  function _set(device: string) {
+async function setDarwinSystemProxy(server: string, enabled: boolean, proxyType: ProxyType) {
+  async function _set(device: string) {
     const state = enabled ? 'on' : 'off'
 
     const httpState = ['mixed', 'http'].includes(proxyType) ? state : 'off'
     const socksState = ['mixed', 'socks'].includes(proxyType) ? state : 'off'
 
-    ignoredError(Exec, 'networksetup', ['-setwebproxystate', device, httpState])
-    ignoredError(Exec, 'networksetup', ['-setsecurewebproxystate', device, httpState])
-    ignoredError(Exec, 'networksetup', ['-setsocksfirewallproxystate', device, socksState])
+    const p1 = ignoredError(Exec, 'networksetup', ['-setwebproxystate', device, httpState])
+    const p2 = ignoredError(Exec, 'networksetup', ['-setsecurewebproxystate', device, httpState])
+    const p3 = ignoredError(Exec, 'networksetup', [
+      '-setsocksfirewallproxystate',
+      device,
+      socksState,
+    ])
 
     const [serverName, serverPort] = server.split(':')
 
+    const promises = [p1, p2, p3]
     if (httpState === 'on') {
-      ignoredError(Exec, 'networksetup', ['-setwebproxy', device, serverName, serverPort])
-      ignoredError(Exec, 'networksetup', ['-setsecurewebproxy', device, serverName, serverPort])
+      const p1 = ignoredError(Exec, 'networksetup', [
+        '-setwebproxy',
+        device,
+        serverName,
+        serverPort,
+      ])
+      const p2 = ignoredError(Exec, 'networksetup', [
+        '-setsecurewebproxy',
+        device,
+        serverName,
+        serverPort,
+      ])
+      promises.push(p1, p2)
     }
     if (socksState === 'on') {
-      ignoredError(Exec, 'networksetup', ['-setsocksfirewallproxy', device, serverName, serverPort])
+      const p1 = ignoredError(Exec, 'networksetup', [
+        '-setsocksfirewallproxy',
+        device,
+        serverName,
+        serverPort,
+      ])
+      promises.push(p1)
     }
+
+    await Promise.all(promises)
   }
-  _set('Ethernet')
-  _set('Wi-Fi')
+  const p1 = _set('Ethernet')
+  const p2 = _set('Wi-Fi')
+  await Promise.all([p1, p2])
 }
 
-function setLinuxSystemProxy(server: string, enabled: boolean, proxyType: ProxyType) {
+async function setLinuxSystemProxy(server: string, enabled: boolean, proxyType: ProxyType) {
   const [serverName, serverPort] = server.split(':')
   const httpEnabled = enabled && ['mixed', 'http'].includes(proxyType)
   const socksEnabled = enabled && ['mixed', 'socks'].includes(proxyType)
 
-  ignoredError(Exec, 'gsettings', [
-    'set',
-    'org.gnome.system.proxy',
-    'mode',
-    enabled ? 'manual' : 'none'
-  ])
-  ignoredError(Exec, 'gsettings', [
-    'set',
-    'org.gnome.system.proxy.http',
-    'host',
-    httpEnabled ? serverName : ''
-  ])
-  ignoredError(Exec, 'gsettings', [
-    'set',
-    'org.gnome.system.proxy.http',
-    'port',
-    httpEnabled ? serverPort : '0'
-  ])
-  ignoredError(Exec, 'gsettings', [
-    'set',
-    'org.gnome.system.proxy.https',
-    'host',
-    httpEnabled ? serverName : ''
-  ])
-  ignoredError(Exec, 'gsettings', [
-    'set',
-    'org.gnome.system.proxy.https',
-    'port',
-    httpEnabled ? serverPort : '0'
-  ])
-  ignoredError(Exec, 'gsettings', [
-    'set',
-    'org.gnome.system.proxy.socks',
-    'host',
-    socksEnabled ? serverName : ''
-  ])
-  ignoredError(Exec, 'gsettings', [
-    'set',
-    'org.gnome.system.proxy.socks',
-    'port',
-    socksEnabled ? serverPort : '0'
-  ])
+  const desktop = (await Exec('sh', ['-c', 'echo $XDG_CURRENT_DESKTOP'])).trim()
+  if (desktop.includes('KDE')) {
+    const p1 = ignoredError(Exec, 'kwriteconfig5', [
+      '--file',
+      'kioslaverc',
+      '--group',
+      'Proxy Settings',
+      '--key',
+      'ProxyType',
+      enabled ? '1' : '0',
+    ])
+    const p2 = ignoredError(Exec, 'kwriteconfig5', [
+      '--file',
+      'kioslaverc',
+      '--group',
+      'Proxy Settings',
+      '--key',
+      'httpProxy',
+      httpEnabled ? `http://${server}` : '',
+    ])
+    const p3 = ignoredError(Exec, 'kwriteconfig5', [
+      '--file',
+      'kioslaverc',
+      '--group',
+      'Proxy Settings',
+      '--key',
+      'httpsProxy',
+      httpEnabled ? `http://${server}` : '',
+    ])
+    const p4 = ignoredError(Exec, 'kwriteconfig5', [
+      '--file',
+      'kioslaverc',
+      '--group',
+      'Proxy Settings',
+      '--key',
+      'socksProxy',
+      socksEnabled ? `socks://${server}` : '',
+    ])
+    await Promise.all([p1, p2, p3, p4])
+  } else if (desktop.includes('GNOME')) {
+    const p1 = ignoredError(Exec, 'gsettings', [
+      'set',
+      'org.gnome.system.proxy',
+      'mode',
+      enabled ? 'manual' : 'none',
+    ])
+    const p2 = ignoredError(Exec, 'gsettings', [
+      'set',
+      'org.gnome.system.proxy.http',
+      'host',
+      httpEnabled ? serverName : '',
+    ])
+    const p3 = ignoredError(Exec, 'gsettings', [
+      'set',
+      'org.gnome.system.proxy.http',
+      'port',
+      httpEnabled ? serverPort : '0',
+    ])
+    const p4 = ignoredError(Exec, 'gsettings', [
+      'set',
+      'org.gnome.system.proxy.https',
+      'host',
+      httpEnabled ? serverName : '',
+    ])
+    const p5 = ignoredError(Exec, 'gsettings', [
+      'set',
+      'org.gnome.system.proxy.https',
+      'port',
+      httpEnabled ? serverPort : '0',
+    ])
+    const p6 = ignoredError(Exec, 'gsettings', [
+      'set',
+      'org.gnome.system.proxy.socks',
+      'host',
+      socksEnabled ? serverName : '',
+    ])
+    const p7 = ignoredError(Exec, 'gsettings', [
+      'set',
+      'org.gnome.system.proxy.socks',
+      'port',
+      socksEnabled ? serverPort : '0',
+    ])
+    await Promise.all([p1, p2, p3, p4, p5, p6, p7])
+  }
 }
 
 export const GetSystemProxy = async () => {
   const { os } = useEnvStore().env
   try {
     if (os === 'windows') {
-      const out1 = await Exec(
-        'reg',
-        [
-          'query',
-          'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings',
-          '/v',
-          'ProxyEnable',
-          '/t',
-          'REG_DWORD'
-        ],
-        { convert: true }
-      )
+      const out1 = await Exec('reg', [
+        'query',
+        'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings',
+        '/v',
+        'ProxyEnable',
+        '/t',
+        'REG_DWORD',
+      ])
 
       if (/REG_DWORD\s+0x0/.test(out1)) return ''
 
-      const out2 = await Exec(
-        'reg',
-        [
-          'query',
-          'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings',
-          '/v',
-          'ProxyServer',
-          '/t',
-          'REG_SZ'
-        ],
-        { convert: true }
-      )
+      const out2 = await Exec('reg', [
+        'query',
+        'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings',
+        '/v',
+        'ProxyServer',
+        '/t',
+        'REG_SZ',
+      ])
 
       const regex = /ProxyServer\s+REG_SZ\s+(\S+)/
       const match = out2.match(regex)
 
-      return match ? match[1] : ''
+      return match ? (match[1].startsWith('socks') ? match[1] : 'http://' + match[1]) : ''
     }
 
     if (os === 'darwin') {
@@ -257,37 +300,75 @@ export const GetSystemProxy = async () => {
       }
 
       if (map['HTTPEnable'] === '1') {
-        return map['HTTPProxy'] + ':' + map['HTTPPort']
+        return 'http://' + map['HTTPProxy'] + ':' + map['HTTPPort']
       }
 
       if (map['SOCKSEnable'] === '1') {
-        return map['SOCKSProxy'] + ':' + map['SOCKSPort']
+        return 'socks5://' + map['SOCKSProxy'] + ':' + map['SOCKSPort']
       }
 
       return ''
     }
 
     if (os === 'linux') {
-      const out = await Exec('gsettings', ['get', 'org.gnome.system.proxy', 'mode'])
-      if (out.includes('none')) {
-        return ''
-      }
-
-      if (out.includes('manual')) {
-        const out1 = await Exec('gsettings', ['get', 'org.gnome.system.proxy.http', 'host'])
-        const out2 = await Exec('gsettings', ['get', 'org.gnome.system.proxy.http', 'port'])
-        const httpHost = out1.replace(/['"\n]/g, '')
-        const httpPort = out2.replace(/['"\n]/g, '')
-        if (httpHost && httpPort !== '0') {
-          return httpHost + ':' + httpPort
+      const desktop = (await Exec('sh', ['-c', 'echo $XDG_CURRENT_DESKTOP'])).trim()
+      if (desktop.includes('KDE')) {
+        const out = await Exec('kreadconfig5', [
+          '--file',
+          'kioslaverc',
+          '--group',
+          'Proxy Settings',
+          '--key',
+          'ProxyType',
+        ])
+        if (out.includes('1')) {
+          const out1 = await Exec('kreadconfig5', [
+            '--file',
+            'kioslaverc',
+            '--group',
+            'Proxy Settings',
+            '--key',
+            'httpProxy',
+          ])
+          const http = out1.replace(/['"\n]/g, '')
+          if (http) {
+            return http.replace(' ', ':')
+          }
+          const out2 = await Exec('kreadconfig5', [
+            '--file',
+            'kioslaverc',
+            '--group',
+            'Proxy Settings',
+            '--key',
+            'socksProxy',
+          ])
+          const socks = out2.replace(/['"\n]/g, '')
+          if (socks) {
+            return socks.replace(' ', ':')
+          }
+        }
+      } else if (desktop.includes('GNOME')) {
+        const out = await Exec('gsettings', ['get', 'org.gnome.system.proxy', 'mode'])
+        if (out.includes('none')) {
+          return ''
         }
 
-        const out3 = await Exec('gsettings', ['get', 'org.gnome.system.proxy.socks', 'host'])
-        const out4 = await Exec('gsettings', ['get', 'org.gnome.system.proxy.socks', 'port'])
-        const socksHost = out3.replace(/['"\n]/g, '')
-        const socksPort = out4.replace(/['"\n]/g, '')
-        if (socksHost && socksPort !== '0') {
-          return socksHost + ':' + socksPort
+        if (out.includes('manual')) {
+          const out1 = await Exec('gsettings', ['get', 'org.gnome.system.proxy.http', 'host'])
+          const out2 = await Exec('gsettings', ['get', 'org.gnome.system.proxy.http', 'port'])
+          const httpHost = out1.replace(/['"\n]/g, '')
+          const httpPort = out2.replace(/['"\n]/g, '')
+          if (httpHost && httpPort !== '0') {
+            return 'http://' + httpHost + ':' + httpPort
+          }
+
+          const out3 = await Exec('gsettings', ['get', 'org.gnome.system.proxy.socks', 'host'])
+          const out4 = await Exec('gsettings', ['get', 'org.gnome.system.proxy.socks', 'port'])
+          const socksHost = out3.replace(/['"\n]/g, '')
+          const socksPort = out4.replace(/['"\n]/g, '')
+          if (socksHost && socksPort !== '0') {
+            return 'socks5://' + socksHost + ':' + socksPort
+          }
         }
       }
     }
@@ -298,11 +379,6 @@ export const GetSystemProxy = async () => {
 }
 
 export const GetSystemOrKernelProxy = async () => {
-  const systemProxy = await GetSystemProxy()
-  if (systemProxy.length > 0) {
-    return systemProxy
-  }
-
   if (useAppSettingsStore().app.kernel.running) {
     const kernelProxy = useKernelApiStore().getProxyPort()
     if (kernelProxy !== undefined) {
@@ -313,60 +389,8 @@ export const GetSystemOrKernelProxy = async () => {
     }
   }
 
-  return ''
-}
-
-// System ScheduledTask Helper
-export const getTaskSchXmlString = async (delay = 30) => {
-  const { basePath, appName } = useEnvStore().env
-
-  const xml = /*xml*/ `<?xml version="1.0" encoding="UTF-16"?>
-<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-  <RegistrationInfo>
-    <Description>${APP_TITLE} at startup</Description>
-    <URI>\\${APP_TITLE}</URI>
-  </RegistrationInfo>
-  <Triggers>
-    <LogonTrigger>
-      <Enabled>true</Enabled>
-      <Delay>PT${delay}S</Delay>
-    </LogonTrigger>
-  </Triggers>
-  <Principals>
-    <Principal id="Author">
-      <LogonType>InteractiveToken</LogonType>
-      <RunLevel>HighestAvailable</RunLevel>
-    </Principal>
-  </Principals>
-  <Settings>
-    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
-    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
-    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
-    <AllowHardTerminate>true</AllowHardTerminate>
-    <StartWhenAvailable>false</StartWhenAvailable>
-    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
-    <IdleSettings>
-      <StopOnIdleEnd>true</StopOnIdleEnd>
-      <RestartOnIdle>false</RestartOnIdle>
-    </IdleSettings>
-    <AllowStartOnDemand>true</AllowStartOnDemand>
-    <Enabled>true</Enabled>
-    <Hidden>false</Hidden>
-    <RunOnlyIfIdle>false</RunOnlyIfIdle>
-    <WakeToRun>false</WakeToRun>
-    <ExecutionTimeLimit>PT72H</ExecutionTimeLimit>
-    <Priority>7</Priority>
-  </Settings>
-  <Actions Context="Author">
-    <Exec>
-      <Command>${basePath}\\${appName}</Command>
-      <Arguments>tasksch</Arguments>
-    </Exec>
-  </Actions>
-</Task>
-`
-
-  return xml
+  const systemProxy = await GetSystemProxy()
+  return systemProxy
 }
 
 export const QuerySchTask = async (taskName: string) => {
@@ -392,7 +416,7 @@ export const handleUseProxy = async (group: any, proxy: any) => {
     promises.push(
       ...(connections || [])
         .filter((v) => v.chains.includes(group.name))
-        .map((v) => deleteConnection(v.id))
+        .map((v) => deleteConnection(v.id)),
     )
   }
   await useProxy(group.name, proxy.name)
@@ -414,7 +438,7 @@ export const handleChangeMode = async (mode: 'direct' | 'global' | 'rule') => {
 
 export const addToRuleSet = async (
   ruleset: 'direct' | 'reject' | 'block',
-  payloads: Record<string, any>[]
+  payloads: Record<string, any>[],
 ) => {
   const path = `data/rulesets/${ruleset}.json`
   const content = (await ignoredError(Readfile, path)) || '{ "version": 1, "rules": [] }'
@@ -427,7 +451,7 @@ export const addToRuleSet = async (
       rules[0].ip_cidr = [...new Set((rules[0].ip_cidr || []).concat(payload.ip_cidr))]
     } else if (payload.process_path) {
       rules[0].process_path = [
-        ...new Set((rules[0].process_path || []).concat(payload.process_path))
+        ...new Set((rules[0].process_path || []).concat(payload.process_path)),
       ]
     }
   })
@@ -466,4 +490,12 @@ export const exitApp = async () => {
   } catch (err: any) {
     error(err)
   }
+}
+
+export const getKernelFileName = async (isAlpha = false) => {
+  const envStore = useEnvStore()
+  const { os } = envStore.env
+  const fileSuffix = { windows: '.exe', linux: '', darwin: '' }[os]
+  const latest = isAlpha ? '-latest' : ''
+  return `sing-box${latest}${fileSuffix}`
 }

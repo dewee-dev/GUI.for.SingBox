@@ -16,6 +16,11 @@ type ResponseType = {
   options: { mode: 'Binary' | 'Text' }
 }
 
+type ServerOptions = {
+  cert: string
+  key: string
+}
+
 type HttpServerHandler = (
   req: RequestType,
   res: {
@@ -23,13 +28,18 @@ type HttpServerHandler = (
       status: ResponseType['status'],
       headers: ResponseType['headers'],
       body: ResponseType['body'],
-      options: ResponseType['options']
+      options: ResponseType['options'],
     ) => void
-  }
+  },
 ) => Promise<void>
 
-export const StartServer = async (address: string, id: string, handler: HttpServerHandler) => {
-  const { flag, data } = await App.StartServer(address, id)
+export const StartServer = async (
+  address: string,
+  id: string,
+  handler: HttpServerHandler,
+  options: ServerOptions = { cert: '', key: '' },
+) => {
+  const { flag, data } = await App.StartServer(address, id, options)
   if (!flag) {
     throw data
   }
@@ -43,13 +53,13 @@ export const StartServer = async (address: string, id: string, handler: HttpServ
           method,
           url,
           headers: Object.entries(headers).reduce((p, c: any) => ({ ...p, [c[0]]: c[1][0] }), {}),
-          body
+          body,
         },
         {
           end: (status, headers, body, options = { mode: 'Text' }) => {
             EventsEmit(id, status, JSON.stringify(headers), body, JSON.stringify(options))
-          }
-        }
+          },
+        },
       )
     } catch (err: any) {
       console.log('Server handler err:', err, id)
@@ -58,7 +68,7 @@ export const StartServer = async (address: string, id: string, handler: HttpServ
         500,
         JSON.stringify({ 'Content-Type': 'text/plain; charset=utf-8' }),
         err.message || err,
-        JSON.stringify({ Mode: 'Text' })
+        JSON.stringify({ Mode: 'Text' }),
       )
     }
   })

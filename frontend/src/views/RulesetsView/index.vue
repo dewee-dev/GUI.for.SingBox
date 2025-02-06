@@ -6,20 +6,19 @@ import { useMessage } from '@/hooks'
 import { Removefile, Writefile, BrowserOpenURL } from '@/bridge'
 import { debounce, formatRelativeTime, ignoredError, formatDate } from '@/utils'
 import { getProvidersRules, updateProvidersRules } from '@/api/kernel'
-import { DraggableOptions, View, EmptyRuleSet, RulesetFormat } from '@/constant'
-import {
-  type RuleSetType,
-  type Menu,
-  useRulesetsStore,
-  useAppSettingsStore,
-  useEnvStore
-} from '@/stores'
+import { DraggableOptions } from '@/constant/app'
+import { View } from '@/enums/app'
+import { EmptyRuleSet } from '@/constant/kernel'
+import { RulesetFormat } from '@/enums/kernel'
+import { type RuleSetType, useRulesetsStore, useAppSettingsStore, useEnvStore } from '@/stores'
 
 import RulesetForm from './components/RulesetForm.vue'
 import RulesetView from './components/RulesetView.vue'
+import RulesetHub from './components/RulesetHub.vue'
 
 const showRulesetForm = ref(false)
 const showRulesetList = ref(false)
+const showRulesetHub = ref(false)
 const rulesetTitle = ref('')
 const rulesetFormID = ref()
 const rulesetFormIsUpdate = ref(false)
@@ -28,28 +27,29 @@ const subFormTitle = computed(() => (rulesetFormIsUpdate.value ? 'common.edit' :
 const sourceMenuList: Menu[] = [
   {
     label: 'rulesets.editRuleset',
-    handler: (id: string) => handleEditRulesetList(id)
+    handler: (id: string) => handleEditRulesetList(id),
   },
   {
     label: 'common.openFile',
     handler: (id: string) => {
       const ruleset = rulesetsStore.getRulesetById(id)
       BrowserOpenURL(envStore.env.basePath + '/' + ruleset!.path)
-    }
+    },
   },
   {
     label: 'common.clear',
-    handler: (id: string) => handleClearRuleset(id)
-  }
+    handler: (id: string) => handleClearRuleset(id),
+  },
 ]
 
 const binaryMenuList: Menu[] = [
   {
     label: 'common.none',
     handler: (id: string) => {
+      console.log(id)
       message.info('common.none')
-    }
-  }
+    },
+  },
 ]
 
 const { t } = useI18n()
@@ -57,6 +57,10 @@ const { message } = useMessage()
 const envStore = useEnvStore()
 const rulesetsStore = useRulesetsStore()
 const appSettingsStore = useAppSettingsStore()
+
+const handleImportRuleset = async () => {
+  showRulesetHub.value = true
+}
 
 const handleAddRuleset = async () => {
   rulesetFormIsUpdate.value = false
@@ -160,7 +164,7 @@ const _updateAllProvidersRules = async () => {
 const generateMenus = (r: RuleSetType) => {
   return {
     [RulesetFormat.Source]: sourceMenuList,
-    [RulesetFormat.Binary]: binaryMenuList
+    [RulesetFormat.Binary]: binaryMenuList,
   }[r.format].map((v) => ({ ...v, handler: () => v.handler?.(r.id) }))
 }
 
@@ -177,6 +181,9 @@ const onSortUpdate = debounce(rulesetsStore.saveRulesets, 1000)
           <template #action>
             <Button @click="handleAddRuleset" type="link">{{ t('common.add') }}</Button>
           </template>
+          <template #import>
+            <Button @click="handleImportRuleset" type="link">{{ t('rulesets.hub') }}</Button>
+          </template>
         </I18nT>
       </template>
     </Empty>
@@ -187,14 +194,16 @@ const onSortUpdate = debounce(rulesetsStore.saveRulesets, 1000)
       v-model="appSettingsStore.app.rulesetsView"
       :options="[
         { label: 'common.grid', value: View.Grid },
-        { label: 'common.list', value: View.List }
+        { label: 'common.list', value: View.List },
       ]"
     />
+    <Button @click="handleImportRuleset" type="link" class="ml-auto">
+      {{ t('rulesets.hub') }}
+    </Button>
     <Button
       @click="handleUpdateRulesets"
       :disabled="noUpdateNeeded"
       :type="noUpdateNeeded ? 'text' : 'link'"
-      class="ml-auto"
     >
       {{ t('common.updateAll') }}
     </Button>
@@ -268,7 +277,7 @@ const onSortUpdate = debounce(rulesetsStore.saveRulesets, 1000)
         </Button>
       </template>
 
-      <div>
+      <div v-if="r.format === RulesetFormat.Binary">
         {{ t('ruleset.format.name') }}
         :
         {{ r.format || '--' }}
@@ -309,6 +318,18 @@ const onSortUpdate = debounce(rulesetsStore.saveRulesets, 1000)
     :footer="false"
   >
     <RulesetForm :is-update="rulesetFormIsUpdate" :id="rulesetFormID" />
+  </Modal>
+
+  <Modal
+    v-model:open="showRulesetHub"
+    title="rulesets.hub"
+    :submit="false"
+    mask-closable
+    cancel-text="common.close"
+    height="90"
+    width="90"
+  >
+    <RulesetHub />
   </Modal>
 
   <Modal

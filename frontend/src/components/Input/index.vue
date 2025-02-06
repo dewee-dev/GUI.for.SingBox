@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, useTemplateRef } from 'vue'
 
 import useI18n from '@/lang'
 import { debounce } from '@/utils'
@@ -37,13 +37,13 @@ const props = withDefaults(defineProps<Props>(), {
   border: true,
   delay: 0,
   pl: '8px',
-  pr: '8px'
+  pr: '8px',
 })
 
 const emits = defineEmits(['update:modelValue', 'submit'])
 
 const showEdit = ref(false)
-const inputRef = ref<HTMLElement>()
+const inputRef = useTemplateRef('inputRef')
 const innerClearable = computed(() => props.clearable && props.type !== 'code' && props.modelValue)
 
 const { t } = useI18n.global
@@ -81,14 +81,14 @@ const onSubmit = () => {
       emits('submit', props.modelValue)
       props.editable && (showEdit.value = false)
     },
-    props.clearable ? 100 : 0
+    props.clearable ? 100 : 0,
   )
 }
 
 onMounted(() => props.autofocus && inputRef.value?.focus())
 
 defineExpose({
-  focus: () => inputRef.value?.focus()
+  focus: () => inputRef.value?.focus(),
 })
 </script>
 
@@ -100,10 +100,10 @@ defineExpose({
       'auto-size': autoSize,
       'limit-width': !autoSize && (!editable || showEdit),
       'bg-color': !editable || showEdit,
-      [size]: true
+      [size]: true,
     }"
     :style="{
-      height: type === 'code' ? '' : size === 'small' ? '26px' : '30px'
+      height: type === 'code' ? '' : size === 'small' ? '26px' : '30px',
     }"
     class="input"
   >
@@ -128,7 +128,7 @@ defineExpose({
         :style="{
           width: !autoSize ? '0' : width,
           paddingLeft: pl,
-          paddingRight: clearable ? '0' : pr
+          paddingRight: clearable ? '0' : pr,
         }"
         :disabled="disabled"
         @input="($event) => onInput($event)"
